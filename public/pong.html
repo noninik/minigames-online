@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pong — MiniGames</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+  <div class="container">
+    <a href="/" class="back-link">← Назад к играм</a>
+
+    <div id="lobby" class="lobby">
+      <h1>🏓 Pong</h1>
+      <div>
+        <button class="btn" onclick="createRoom()">Создать комнату</button>
+      </div>
+      <div style="margin-top:20px">
+        <input type="text" id="codeInput" placeholder="Код комнаты" maxlength="6">
+        <button class="btn btn-secondary" onclick="joinRoom()">Войти</button>
+      </div>
+      <div id="roomInfo" class="hidden">
+        <div class="room-code" id="roomCode"></div>
+        <div class="info-bar">Ожидание второго игрока...</div>
+      </div>
+    </div>
+
+    <div id="gameScreen" class="game-area hidden">
+      <div class="score-display">
+        <span id="s1">0</span> : <span id="s2">0</span>
+      </div>
+      <canvas id="c" width="700" height="500"></canvas>
+      <div class="info-bar">Управление: W/S или ↑/↓</div>
+    </div>
+  </div>
+
+<script>
+const socket = io();
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let myIndex = 0;
+let running = false;
+
+const W = 700, H = 500;
+const PAD_W = 12, PAD_H = 90;
+let p1y = H/2 - PAD_H/2;
+let p2y = H/2 - PAD_H/2;
+let ball = {x: W/2, y: H/2, vx: 4, vy: 3};
+let scores = [0, 0];
+
+function createRoom() {
+  socket.emit('createRoom', 'pong', (code) => {
+    myIndex = 0;
+    document.getElementById('roomCode').textContent = code;
+    document.getElementById('roomInfo').classList.remove('hidden');
+  });
+}
+
+function joinRoom() {
+  const code = document.getElementById('codeInput').value.toUpperCase();
+  socket.emit('joinRoom', code, (res) => {
+    if (res.error) return alert(res.error);
+    myIndex = res.playerIndex;
+    startGame();
+  });
+}
+
+socket.on('playerJoined', (count) => {
+  if (count === 2) startGame();
+});
+
+function startGame() {
+  document.getElementById('lobby').classList.add('hidden');
+  document.getElementById('gameScreen').classList.remove('hidden');
+  running = true;
+  resetBall();
+  gameLoop();
+}
+
+function resetBall() {
+  ball.x = W/2;
+  ball.y = H/2;
+  ball.vx = (Math.random() > 0.5 ? 4 : -4);
+  ball.vy = (Math.random() - 0.5) * 6;
+}
+
+let keys = {};
+document.addEventListener('keydown', e => keys[e.key] = true);
+document.addEventListener('keyup', e => keys[e.key] = false);
+
+function gameLoop() {
+  if (!running) return;
+  update();
+  draw();
+  requestAnimationFrame(gameLoop);
+}
+
+function update() {
+  // Движение моей ракетки
+  let myY = myIndex === 0 ? p1y : p2y;
+  if (keys['ArrowUp'] || keys['w'] || keys['W']) myY -= 5;
+  if (keys['ArrowDown'] || keys['s'] || keys['S']) myY += 5;
+  myY = Math.max(0, Math.min(H - PAD_H, myY));
+  
+  if (myIndex === 0) p1y = myY;
+  else p2y = myY;
+
+  socket.emit('pongMove', {index: myIndex, y: myY});
+
+  // Хост управляет мячом
+  if (myIndex === 0) {
+    ball.x += ball.vx;
+    ball.y += ball.vy;
+
+    if (ball.y <= 0 || ball.y >= H) ball.vy *= -1;
+
+    // Левая ракетка
+    if (ball.x <= PAD_W + 15 && ball.y >= p1y && ball.y <= p1y + PAD_H) {
+      ball.vx = Math.abs(ball.vx) * 1.05;
+      ball.vy += (Math.random() - 0.5) * 2;
+    }
+    // Правая ракетка
+    if (ball.x >= W - PAD_W - 15 && ball.y >= p2y && ball.y <= p2y + PAD_H) {
+      ball.vx = -Math.abs(ball.vx) * 1.05;
+      ball.vy += (Math.random() - 0.5) * 2;
+    }
+
+    // Гол
+    if (ball.x < 0) {
+      scores[1]++;
+      socket.emit('pongScore', scores);
+      updateScoreUI();
+      resetBall();
+    }
+    if (ball.x > W) {
+      scores[0]++;
+      socket.emit('pongScore', scores);
+      updateScoreUI();
+      resetBall();
+    }
+
+    // Ограничение скорости
+    if (Math.abs(ball.vx) > 12) ball.vx = 12 * Math.sign(ball.vx);
+
+    socket.emit('pongBall', ball);
+  }
+}
+
+socket.on('pongMove', (data) => {
+  if (data.index === 0) p1y = data.y;
+  else p2y = data.y;
+});
+
+socket.on('pongBall', (data) => {
+  if (myIndex !== 0) {
+    ball = data;
+  }
+});
+
+socket.on('pongScore', (s) => {
+  scores = s;
+  updateScoreUI();
+});
+
+function updateScoreUI() {
+  document.getElementById('s1').textContent = scores[0];
+  document.getElementById('s2').textContent = scores[1];
+}
+
+function draw() {
+  // Фон
+  ctx.fillStyle = '#111';
+  ctx.fillRect(0, 0, W, H);
+
+  // Пунктирная линия по центру
+  ctx.setLineDash([10, 10]);
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(W/2, 0);
+  ctx.lineTo(W/2, H);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Ракетки
+  ctx.shadowColor = '#667eea';
+  ctx.shadowBlur = 15;
+  ctx.fillStyle = '#667eea';
+  ctx.fillRect(15, p1y, PAD_W, PAD_H);
+
+  ctx.shadowColor = '#e74c3c';
+  ctx.fillStyle = '#e74c3c';
+  ctx.fillRect(W - 15 - PAD_W, p2y, PAD_W, PAD_H);
+
+  ctx.shadowBlur = 0;
+
+  // Мяч
+  ctx.fillStyle = '#fff';
+  ctx.shadowColor = '#fff';
+  ctx.shadowBlur = 15;
+  ctx.beginPath();
+  ctx.arc(ball.x, ball.y, 8, 0, Math.PI*2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+}
+</script>
+</body>
+</html>
