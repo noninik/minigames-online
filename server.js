@@ -17,6 +17,7 @@ function genCode() {
 io.on('connection', (socket) => {
   console.log('connected:', socket.id);
 
+  // Создать комнату
   socket.on('createRoom', (game, cb) => {
     const code = genCode();
     rooms[code] = {
@@ -30,6 +31,7 @@ io.on('connection', (socket) => {
     cb(code);
   });
 
+  // Войти в комнату
   socket.on('joinRoom', (code, cb) => {
     const room = rooms[code];
     if (!room) return cb({ error: 'Комната не найдена' });
@@ -49,38 +51,59 @@ io.on('connection', (socket) => {
     });
   });
 
-  // === DRAW ===
-  socket.on('setWord', (word) => {
-    if (!socket.roomCode || !rooms[socket.roomCode]) return;
-    const room = rooms[socket.roomCode];
-    room.state.word = word;
-    const hint = word[0] + ' _'.repeat(word.length - 1);
-    // Отправить подсказку всем КРОМЕ рисующего
-    socket.to(socket.roomCode).emit('wordHint', hint);
-    io.to(socket.roomCode).emit('roundStart', {
-      drawerIndex: room.state.drawerIndex,
-      drawerId: room.players[room.state.drawerIndex].id,
-      drawerName: room.players[room.state.drawerIndex].name,
-      round: room.state.round + 1
+  // === DRAW: Хост нажал Начать ===
+  socket.on('drawGameStart', () => {
+    const code = socket.roomCode;
+    if (!code || !rooms[code]) return;
+    const room = rooms[code];
+    if (socket.id !== room.host) return;
+
+    room.state.drawerIndex = 0;
+    room.state.round = 0;
+    room.state.word = null;
+
+    const drawer = room.players[0];
+    io.to(code).emit('drawGameStarted', {
+      drawerIndex: 0,
+      drawerId: drawer.id,
+      drawerName: drawer.name,
+      round: 1,
+      players: room.players.map(p => ({ name: p.name, score: p.score }))
     });
   });
 
+  // === DRAW: Установить слово ===
+  socket.on('setWord', (word) => {
+    const code = socket.roomCode;
+    if (!code || !rooms[code]) return;
+    const room = rooms[code];
+    room.state.word = word;
+    const hint = word[0] + ' _'.repeat(word.length - 1);
+    socket.to(code).emit('wordHint', hint);
+    io.to(code).emit('roundStart', {
+      drawerIndex: room.state.drawerIndex,
+      drawerId: room.players[room.state.drawerIndex].id,
+      drawerName: room.players[room.state.drawerIndex].name,
+      round: room.state.round + 1,
+      players: room.players.map(p => ({ name: p.name, score: p.score }))
+    });
+  });
+
+  // === DRAW: Сообщение в чат / проверка ответа ===
   socket.on('chatMsg', (msg) => {
-    if (!socket.roomCode || !rooms[socket.roomCode]) return;
-    const room = rooms[socket.roomCode];
+    const code = socket.roomCode;
+    if (!code || !rooms[code]) return;
+    const room = rooms[code];
     const playerIdx = room.players.findIndex(p => p.id === socket.id);
     const playerName = playerIdx >= 0 ? room.players[playerIdx].name : 'Игрок';
 
-    // Проверка угадал ли
     if (room.state.word &&
         msg.toLowerCase().trim() === room.state.word.toLowerCase().trim()) {
-      // Начислить очки
       if (playerIdx >= 0) room.players[playerIdx].score += 10;
-      // Рисующему тоже очки
       const di = room.state.drawerIndex;
       if (di < room.players.length) room.players[di].score += 5;
 
-      io.to(socket.roomCode).emit('correctGuess', {
+      io.to(code).emit('correctGuess', {
         name: playerName,
         word: room.state.word,
         players: room.players.map(p => ({ name: p.name, score: p.score }))
@@ -88,32 +111,26 @@ io.on('connection', (socket) => {
 
       room.state.word = null;
 
-      // Следующий раунд через 4 секунды
       setTimeout(() => {
-        if (!rooms[socket.roomCode]) return;
-        nextRound(socket.roomCode);
+        if (!rooms[code]) return;
+        nextRound(code);
       }, 4000);
     } else {
-      io.to(socket.roomCode).emit('chatMsg', {
-        name: playerName,
-        msg
-      });
+      io.to(code).emit('chatMsg', { name: playerName, msg });
     }
   });
 
+  // === DRAW: Рисование ===
   socket.on('drawLine', (data) => {
     if (socket.roomCode) socket.to(socket.roomCode).emit('drawLine', data);
   });
-
   socket.on('clearCanvas', () => {
     if (socket.roomCode) socket.to(socket.roomCode).emit('clearCanvas');
   });
 
   // === SNAKE ===
   socket.on('snakeUpdate', (data) => {
-    if (socket.roomCode) {
-      socket.to(socket.roomCode).emit('snakeUpdate', { id: socket.id, ...data });
-    }
+    if (socket.roomCode) socket.to(socket.roomCode).emit('snakeUpdate', { id: socket.id, ...data });
   });
   socket.on('snakeStart', () => {
     if (socket.roomCode) io.to(socket.roomCode).emit('snakeStart');
@@ -132,15 +149,16 @@ io.on('connection', (socket) => {
 
   // === DISCONNECT ===
   socket.on('disconnect', () => {
-    if (socket.roomCode && rooms[socket.roomCode]) {
-      const room = rooms[socket.roomCode];
+    const code = socket.roomCode;
+    if (code && rooms[code]) {
+      const room = rooms[code];
       room.players = room.players.filter(p => p.id !== socket.id);
-      io.to(socket.roomCode).emit('playerLeft', {
+      io.to(code).emit('playerLeft', {
         count: room.players.length,
         players: room.players.map(p => ({ name: p.name, score: p.score }))
       });
       if (room.players.length === 0) {
-        delete rooms[socket.roomCode];
+        delete rooms[code];
       }
     }
   });
@@ -167,5 +185,5 @@ function nextRound(code) {
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log('Server running on port ' + PORT);
 });
