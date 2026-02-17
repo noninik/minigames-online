@@ -9,21 +9,24 @@ body {
   background: #0f0f23;
   color: #e0e0e0;
   min-height: 100vh;
+  overflow-x: hidden;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .container {
   max-width: 1000px;
   margin: 0 auto;
-  padding: 40px 20px;
+  padding: 20px 15px;
 }
 
 header {
   text-align: center;
-  margin-bottom: 50px;
+  margin-bottom: 40px;
 }
 
 header h1 {
-  font-size: 2.8em;
+  font-size: 2.2em;
   background: linear-gradient(135deg, #667eea, #764ba2);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -32,47 +35,48 @@ header h1 {
 
 .subtitle {
   margin-top: 10px;
-  font-size: 1.2em;
+  font-size: 1.1em;
   color: #888;
 }
 
 .games-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 25px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 20px;
 }
 
 .game-card {
   background: linear-gradient(145deg, #1a1a2e, #16213e);
   border: 1px solid #333;
   border-radius: 16px;
-  padding: 30px;
+  padding: 25px;
   cursor: pointer;
   transition: all 0.3s ease;
   text-align: center;
 }
 
-.game-card:hover {
-  transform: translateY(-5px);
+.game-card:hover, .game-card:active {
+  transform: translateY(-3px);
   border-color: #667eea;
   box-shadow: 0 10px 30px rgba(102, 126, 234, 0.2);
 }
 
 .game-icon {
-  font-size: 4em;
-  margin-bottom: 15px;
+  font-size: 3.5em;
+  margin-bottom: 12px;
 }
 
 .game-card h2 {
-  font-size: 1.5em;
-  margin-bottom: 10px;
+  font-size: 1.4em;
+  margin-bottom: 8px;
   color: #fff;
 }
 
 .game-card p {
   color: #999;
-  margin-bottom: 15px;
+  margin-bottom: 12px;
   line-height: 1.5;
+  font-size: 0.95em;
 }
 
 .players-badge {
@@ -81,25 +85,25 @@ header h1 {
   border-radius: 20px;
   font-size: 0.85em;
   font-weight: bold;
+  display: inline-block;
 }
 
 footer {
   text-align: center;
-  margin-top: 50px;
+  margin-top: 40px;
   color: #555;
 }
 
-/* Общие стили для страниц игр */
 .lobby {
   max-width: 500px;
   margin: 0 auto;
   text-align: center;
-  padding: 40px 20px;
+  padding: 20px 10px;
 }
 
 .lobby h1 {
-  font-size: 2em;
-  margin-bottom: 30px;
+  font-size: 1.8em;
+  margin-bottom: 25px;
   color: #fff;
 }
 
@@ -107,15 +111,16 @@ footer {
   background: linear-gradient(135deg, #667eea, #764ba2);
   color: #fff;
   border: none;
-  padding: 12px 30px;
-  border-radius: 10px;
+  padding: 14px 30px;
+  border-radius: 12px;
   font-size: 1em;
   cursor: pointer;
   transition: opacity 0.3s;
   margin: 5px;
+  touch-action: manipulation;
 }
 
-.btn:hover {
+.btn:hover, .btn:active {
   opacity: 0.85;
 }
 
@@ -127,12 +132,12 @@ input[type="text"] {
   background: #1a1a2e;
   border: 1px solid #444;
   color: #fff;
-  padding: 12px 20px;
-  border-radius: 10px;
+  padding: 14px 18px;
+  border-radius: 12px;
   font-size: 1em;
   text-align: center;
   width: 200px;
-  margin: 10px;
+  margin: 8px;
 }
 
 .room-code {
@@ -140,22 +145,25 @@ input[type="text"] {
   font-weight: bold;
   color: #667eea;
   letter-spacing: 5px;
-  margin: 20px 0;
+  margin: 15px 0;
 }
 
 .info-bar {
   background: #1a1a2e;
-  padding: 10px 20px;
+  padding: 10px 15px;
   border-radius: 10px;
-  margin: 15px 0;
+  margin: 10px 0;
   color: #aaa;
+  font-size: 0.95em;
 }
 
 .back-link {
   display: inline-block;
   color: #667eea;
   text-decoration: none;
-  margin-bottom: 20px;
+  margin-bottom: 15px;
+  font-size: 1em;
+  padding: 5px 0;
 }
 
 .game-area {
@@ -168,12 +176,66 @@ canvas {
   border: 2px solid #333;
   border-radius: 8px;
   background: #111;
+  max-width: 100%;
+  touch-action: none;
+}
+
+/* Тач-управление змейка и понг */
+.touch-controls {
+  display: none;
+  gap: 5px;
+  margin-top: 15px;
+}
+
+.touch-btn {
+  width: 60px;
+  height: 60px;
+  background: linear-gradient(135deg, #1a1a2e, #16213e);
+  border: 1px solid #444;
+  border-radius: 14px;
+  color: #fff;
+  font-size: 1.5em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.touch-btn:active {
+  background: #667eea;
+  border-color: #667eea;
+}
+
+.touch-grid {
+  display: grid;
+  grid-template-columns: 60px 60px 60px;
+  grid-template-rows: 60px 60px 60px;
+  gap: 5px;
+}
+
+.touch-grid .touch-btn:nth-child(1) { grid-column: 2; grid-row: 1; }
+.touch-grid .touch-btn:nth-child(2) { grid-column: 1; grid-row: 2; }
+.touch-grid .touch-btn:nth-child(3) { grid-column: 3; grid-row: 2; }
+.touch-grid .touch-btn:nth-child(4) { grid-column: 2; grid-row: 3; }
+
+.pong-touch {
+  display: none;
+  gap: 10px;
+  margin-top: 15px;
+}
+
+.pong-touch .touch-btn {
+  width: 80px;
+  height: 70px;
+  font-size: 2em;
 }
 
 #chat {
   width: 100%;
   max-width: 600px;
-  margin-top: 15px;
+  margin-top: 12px;
 }
 
 #chat-messages {
@@ -181,14 +243,14 @@ canvas {
   border: 1px solid #333;
   border-radius: 10px;
   padding: 10px;
-  height: 150px;
+  height: 130px;
   overflow-y: auto;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
   text-align: left;
 }
 
 #chat-messages p {
-  margin: 5px 0;
+  margin: 4px 0;
   color: #ccc;
   font-size: 0.9em;
 }
@@ -207,11 +269,12 @@ canvas {
 }
 
 .color-btn {
-  width: 30px;
-  height: 30px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
   border: 2px solid #555;
   cursor: pointer;
+  touch-action: manipulation;
 }
 
 .color-btn.active {
@@ -219,11 +282,42 @@ canvas {
   transform: scale(1.2);
 }
 
-.hidden { display: none; }
+.hidden { display: none !important; }
 
 .score-display {
   font-size: 2em;
   font-weight: bold;
-  margin: 10px 0;
+  margin: 8px 0;
   color: #fff;
+}
+
+#guessArea {
+  display: flex;
+  gap: 5px;
+}
+
+#guessArea input {
+  flex: 1;
+  width: auto;
+}
+
+/* Мобильная адаптация */
+@media (max-width: 650px) {
+  header h1 { font-size: 1.6em; }
+  .subtitle { font-size: 0.95em; }
+  .game-icon { font-size: 2.8em; }
+  .game-card h2 { font-size: 1.2em; }
+  .lobby h1 { font-size: 1.5em; }
+  .room-code { font-size: 1.6em; }
+  .score-display { font-size: 1.5em; }
+
+  .touch-controls { display: grid; }
+  .pong-touch { display: flex; }
+}
+
+@media (max-width: 400px) {
+  .container { padding: 10px 8px; }
+  header h1 { font-size: 1.3em; }
+  .btn { padding: 12px 20px; font-size: 0.9em; }
+  input[type="text"] { width: 160px; font-size: 0.9em; }
 }
