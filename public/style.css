@@ -1,0 +1,229 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: #0f0f23;
+  color: #e0e0e0;
+  min-height: 100vh;
+}
+
+.container {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 40px 20px;
+}
+
+header {
+  text-align: center;
+  margin-bottom: 50px;
+}
+
+header h1 {
+  font-size: 2.8em;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.subtitle {
+  margin-top: 10px;
+  font-size: 1.2em;
+  color: #888;
+}
+
+.games-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 25px;
+}
+
+.game-card {
+  background: linear-gradient(145deg, #1a1a2e, #16213e);
+  border: 1px solid #333;
+  border-radius: 16px;
+  padding: 30px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-align: center;
+}
+
+.game-card:hover {
+  transform: translateY(-5px);
+  border-color: #667eea;
+  box-shadow: 0 10px 30px rgba(102, 126, 234, 0.2);
+}
+
+.game-icon {
+  font-size: 4em;
+  margin-bottom: 15px;
+}
+
+.game-card h2 {
+  font-size: 1.5em;
+  margin-bottom: 10px;
+  color: #fff;
+}
+
+.game-card p {
+  color: #999;
+  margin-bottom: 15px;
+  line-height: 1.5;
+}
+
+.players-badge {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  padding: 5px 15px;
+  border-radius: 20px;
+  font-size: 0.85em;
+  font-weight: bold;
+}
+
+footer {
+  text-align: center;
+  margin-top: 50px;
+  color: #555;
+}
+
+/* Общие стили для страниц игр */
+.lobby {
+  max-width: 500px;
+  margin: 0 auto;
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.lobby h1 {
+  font-size: 2em;
+  margin-bottom: 30px;
+  color: #fff;
+}
+
+.btn {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: #fff;
+  border: none;
+  padding: 12px 30px;
+  border-radius: 10px;
+  font-size: 1em;
+  cursor: pointer;
+  transition: opacity 0.3s;
+  margin: 5px;
+}
+
+.btn:hover {
+  opacity: 0.85;
+}
+
+.btn-secondary {
+  background: linear-gradient(135deg, #2d3436, #636e72);
+}
+
+input[type="text"] {
+  background: #1a1a2e;
+  border: 1px solid #444;
+  color: #fff;
+  padding: 12px 20px;
+  border-radius: 10px;
+  font-size: 1em;
+  text-align: center;
+  width: 200px;
+  margin: 10px;
+}
+
+.room-code {
+  font-size: 2em;
+  font-weight: bold;
+  color: #667eea;
+  letter-spacing: 5px;
+  margin: 20px 0;
+}
+
+.info-bar {
+  background: #1a1a2e;
+  padding: 10px 20px;
+  border-radius: 10px;
+  margin: 15px 0;
+  color: #aaa;
+}
+
+.back-link {
+  display: inline-block;
+  color: #667eea;
+  text-decoration: none;
+  margin-bottom: 20px;
+}
+
+.game-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+canvas {
+  border: 2px solid #333;
+  border-radius: 8px;
+  background: #111;
+}
+
+#chat {
+  width: 100%;
+  max-width: 600px;
+  margin-top: 15px;
+}
+
+#chat-messages {
+  background: #1a1a2e;
+  border: 1px solid #333;
+  border-radius: 10px;
+  padding: 10px;
+  height: 150px;
+  overflow-y: auto;
+  margin-bottom: 10px;
+  text-align: left;
+}
+
+#chat-messages p {
+  margin: 5px 0;
+  color: #ccc;
+  font-size: 0.9em;
+}
+
+.correct {
+  color: #2ecc71 !important;
+  font-weight: bold;
+}
+
+.color-picker {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin: 10px 0;
+  flex-wrap: wrap;
+}
+
+.color-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 2px solid #555;
+  cursor: pointer;
+}
+
+.color-btn.active {
+  border-color: #fff;
+  transform: scale(1.2);
+}
+
+.hidden { display: none; }
+
+.score-display {
+  font-size: 2em;
+  font-weight: bold;
+  margin: 10px 0;
+  color: #fff;
+}
