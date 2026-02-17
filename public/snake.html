@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Snake Battle — MiniGames</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+  <div class="container">
+    <a href="/" class="back-link">← Назад к играм</a>
+
+    <!-- ЛОББИ -->
+    <div id="lobby" class="lobby">
+      <h1>🐍 Snake Battle</h1>
+      <div>
+        <button class="btn" onclick="createRoom()">Создать комнату</button>
+      </div>
+      <div style="margin-top:20px">
+        <input type="text" id="codeInput" placeholder="Код комнаты" maxlength="6">
+        <button class="btn btn-secondary" onclick="joinRoom()">Войти</button>
+      </div>
+      <div style="margin-top:20px">
+        <button class="btn btn-secondary" onclick="playSolo()">Играть одному</button>
+      </div>
+      <div id="roomInfo" class="hidden">
+        <div class="room-code" id="roomCode"></div>
+        <div class="info-bar">Игроков: <span id="playerCount">1</span>/4</div>
+        <button class="btn" onclick="startGame()">Начать игру</button>
+      </div>
+    </div>
+
+    <!-- ИГРА -->
+    <div id="gameScreen" class="game-area hidden">
+      <div class="info-bar">
+        Очки: <span id="score">0</span> | 
+        Управление: WASD или стрелки
+      </div>
+      <canvas id="c" width="600" height="600"></canvas>
+    </div>
+  </div>
+
+<script>
+const socket = io();
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+const CELL = 20;
+const COLS = 30;
+const ROWS = 30;
+let myIndex = 0;
+let solo = false;
+let running = false;
+let roomCode = null;
+
+const COLORS = ['#667eea', '#e74c3c', '#2ecc71', '#f39c12'];
+
+// Моя змейка
+let snake, dir, nextDir, food, score;
+
+// Другие игроки
+let others = {};
+
+function initSnake(index) {
+  const starts = [
+    [{x:5,y:5}],
+    [{x:24,y:24}],
+    [{x:24,y:5}],
+    [{x:5,y:24}]
+  ];
+  snake = starts[index] ? [...starts[index]] : [{x:5,y:5}];
+  dir = {x:1,y:0};
+  nextDir = {x:1,y:0};
+  score = 0;
+  spawnFood();
+}
+
+function spawnFood() {
+  food = {
+    x: Math.floor(Math.random()*COLS),
+    y: Math.floor(Math.random()*ROWS)
+  };
+}
+
+function createRoom() {
+  socket.emit('createRoom', 'snake', (code) => {
+    roomCode = code;
+    myIndex = 0;
+    document.getElementById('roomCode').textContent = code;
+    document.getElementById('roomInfo').classList.remove('hidden');
+  });
+}
+
+function joinRoom() {
+  const code = document.getElementById('codeInput').value.toUpperCase();
+  socket.emit('joinRoom', code, (res) => {
+    if (res.error) return alert(res.error);
+    roomCode = code;
+    myIndex = res.playerIndex;
+    document.getElementById('roomCode').textContent = code;
+    document.getElementById('roomInfo').classList.remove('hidden');
+    document.getElementById('playerCount').textContent = res.playerIndex + 1;
+  });
+}
+
+socket.on('playerJoined', (count) => {
+  document.getElementById('playerCount').textContent = count;
+});
+
+function playSolo() {
+  solo = true;
+  myIndex = 0;
+  startGameNow();
+}
+
+function startGame() {
+  socket.emit('snakeStart');
+}
+
+socket.on('snakeStart', () => {
+  startGameNow();
+});
+
+function startGameNow() {
+  document.getElementById('lobby').classList.add('hidden');
+  document.getElementById('gameScreen').classList.remove('hidden');
+  initSnake(myIndex);
+  running = true;
+  others = {};
+  gameLoop();
+}
+
+function gameLoop() {
+  if (!running) return;
+  update();
+  draw();
+  setTimeout(gameLoop, 120);
+}
+
+function update() {
+  dir = nextDir;
+  const head = {x: snake[0].x + dir.x, y: snake[0].y + dir.y};
+
+  // Стены — проход насквозь
+  if (head.x < 0) head.x = COLS - 1;
+  if (head.x >= COLS) head.x = 0;
+  if (head.y < 0) head.y = ROWS - 1;
+  if (head.y >= ROWS) head.y = 0;
+
+  // Столкновение с собой
+  for (let s of snake) {
+    if (s.x === head.x && s.y === head.y) {
+      initSnake(myIndex);
+      return;
+    }
+  }
+
+  snake.unshift(head);
+
+  if (head.x === food.x && head.y === food.y) {
+    score += 10;
+    document.getElementById('score').textContent = score;
+    spawnFood();
+  } else {
+    snake.pop();
+  }
+
+  // Отправляем данные
+  if (!solo) {
+    socket.emit('snakeUpdate', {
+      snake: snake,
+      score: score
+    });
+  }
+}
+
+socket.on('snakeUpdate', (data) => {
+  others[data.id] = data;
+});
+
+socket.on('playerLeft', () => {
+  // Просто продолжаем
+});
+
+function draw() {
+  ctx.fillStyle = '#111';
+  ctx.fillRect(0, 0, 600, 600);
+
+  // Сетка
+  ctx.strokeStyle = '#1a1a2e';
+  for (let i = 0; i <= COLS; i++) {
+    ctx.beginPath();
+    ctx.moveTo(i*CELL, 0);
+    ctx.lineTo(i*CELL, 600);
+    ctx.stroke();
+  }
+  for (let i = 0; i <= ROWS; i++) {
+    ctx.beginPath();
+    ctx.moveTo(0, i*CELL);
+    ctx.lineTo(600, i*CELL);
+    ctx.stroke();
+  }
+
+  // Еда
+  ctx.fillStyle = '#e74c3c';
+  ctx.shadowColor = '#e74c3c';
+  ctx.shadowBlur = 10;
+  ctx.beginPath();
+  ctx.arc(food.x*CELL+CELL/2, food.y*CELL+CELL/2, CELL/2-2, 0, Math.PI*2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // Моя змейка
+  drawSnake(snake, COLORS[myIndex]);
+
+  // Другие
+  for (let id in others) {
+    const o = others[id];
+    const room = roomCode ? true : false;
+    if (o.snake) {
+      // Определяем индекс цвета по порядку
+      const keys = Object.keys(others);
+      const ci = (keys.indexOf(id) + 1) % COLORS.length;
+      drawSnake(o.snake, COLORS[ci === myIndex ? (ci+1)%4 : ci]);
+    }
+  }
+}
+
+function drawSnake(s, color) {
+  for (let i = 0; i < s.length; i++) {
+    const alpha = 1 - (i / s.length) * 0.5;
+    ctx.fillStyle = color;
+    ctx.globalAlpha = alpha;
+    ctx.fillRect(s[i].x*CELL+1, s[i].y*CELL+1, CELL-2, CELL-2);
+  }
+  ctx.globalAlpha = 1;
+  // Глаза на голове
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(s[0].x*CELL+7, s[0].y*CELL+7, 3, 0, Math.PI*2);
+  ctx.arc(s[0].x*CELL+13, s[0].y*CELL+7, 3, 0, Math.PI*2);
+  ctx.fill();
+}
+
+document.addEventListener('keydown', (e) => {
+  switch(e.key) {
+    case 'ArrowUp': case 'w': case 'W':
+      if (dir.y !== 1) nextDir = {x:0,y:-1}; break;
+    case 'ArrowDown': case 's': case 'S':
+      if (dir.y !== -1) nextDir = {x:0,y:1}; break;
+    case 'ArrowLeft': case 'a': case 'A':
+      if (dir.x !== 1) nextDir = {x:-1,y:0}; break;
+    case 'ArrowRight': case 'd': case 'D':
+      if (dir.x !== -1) nextDir = {x:1,y:0}; break;
+  }
+});
+</script>
+</body>
+</html>
