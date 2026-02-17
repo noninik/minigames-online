@@ -6,35 +6,99 @@
   <title>Рисуй и Угадай — MiniGames</title>
   <link rel="stylesheet" href="style.css">
   <script src="/socket.io/socket.io.js"></script>
+  <style>
+    .scoreboard {
+      background: #1a1a2e;
+      border: 1px solid #333;
+      border-radius: 12px;
+      padding: 12px 15px;
+      margin: 10px 0;
+      width: 100%;
+      max-width: 600px;
+    }
+    .scoreboard h3 {
+      color: #667eea;
+      margin-bottom: 8px;
+      font-size: 1em;
+    }
+    .sb-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 4px 0;
+      color: #ccc;
+      font-size: 0.9em;
+    }
+    .sb-row.drawer {
+      color: #f39c12;
+    }
+    .sb-score {
+      font-weight: bold;
+      color: #2ecc71;
+    }
+    .word-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.85);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+    .word-overlay h2 {
+      color: #2ecc71;
+      font-size: 1.8em;
+      margin-bottom: 10px;
+    }
+    .word-overlay p {
+      color: #ccc;
+      font-size: 1.1em;
+    }
+    .word-input-area {
+      margin-top: 12px;
+      text-align: center;
+    }
+    .round-badge {
+      background: #667eea;
+      color: #fff;
+      padding: 3px 12px;
+      border-radius: 15px;
+      font-size: 0.85em;
+      margin-right: 8px;
+    }
+  </style>
 </head>
 <body>
   <div class="container">
     <a href="/" class="back-link">← Назад</a>
 
+    <!-- ЛОББИ -->
     <div id="lobby" class="lobby">
       <h1>🎨 Рисуй и Угадай</h1>
       <div>
-        <button class="btn" onclick="createRoom()">Создать (ты рисуешь)</button>
+        <button class="btn" onclick="createRoom()">Создать комнату</button>
       </div>
       <div style="margin-top:15px">
         <input type="text" id="codeInput" placeholder="Код" maxlength="6">
-        <button class="btn btn-secondary" onclick="joinRoom()">Войти (угадываешь)</button>
+        <button class="btn btn-secondary" onclick="joinRoom()">Войти</button>
       </div>
       <div id="roomInfo" class="hidden">
         <div class="room-code" id="roomCode"></div>
-        <div class="info-bar">Игроков: <span id="playerCount">1</span>/4</div>
-        <div id="wordSetup" class="hidden" style="margin-top:12px">
-          <p>Введи слово:</p>
-          <input type="text" id="wordInput" placeholder="Слово">
-          <button class="btn" onclick="setWord()">Начать!</button>
-        </div>
+        <div class="info-bar">Игроков: <span id="playerCount">1</span>/4 — ждём людей</div>
+        <button class="btn" id="startBtn" onclick="startFirst()">Начать игру</button>
       </div>
     </div>
 
+    <!-- ИГРА -->
     <div id="gameScreen" class="game-area hidden">
-      <div class="info-bar" id="hintBar">Ожидание...</div>
+      <div class="info-bar" id="hintBar">
+        <span class="round-badge" id="roundBadge">Раунд 1</span>
+        <span id="hintText">Ожидание...</span>
+      </div>
+
       <canvas id="c"></canvas>
 
+      <!-- Инструменты рисования -->
       <div id="drawTools" class="hidden">
         <div class="color-picker">
           <div class="color-btn active" style="background:#fff" onclick="setClr('#fff',this)"></div>
@@ -46,12 +110,24 @@
           <div class="color-btn" style="background:#111" onclick="setClr('#111',this)"></div>
         </div>
         <div>
-          <button class="btn btn-secondary" onclick="clearC()" style="padding:8px 20px;font-size:0.9em">Очистить</button>
-          <button class="btn btn-secondary" onclick="sz=3" style="padding:8px 12px;font-size:0.9em">Тонкая</button>
-          <button class="btn btn-secondary" onclick="sz=8" style="padding:8px 12px;font-size:0.9em">Толстая</button>
+          <button class="btn btn-secondary" onclick="clearC()" style="padding:8px 15px;font-size:0.85em">Очистить</button>
+          <button class="btn btn-secondary" onclick="sz=2" style="padding:8px 12px;font-size:0.85em">Тонкая</button>
+          <button class="btn btn-secondary" onclick="sz=5" style="padding:8px 12px;font-size:0.85em">Средняя</button>
+          <button class="btn btn-secondary" onclick="sz=10" style="padding:8px 12px;font-size:0.85em">Толстая</button>
+        </div>
+        <div class="word-input-area" id="wordInputArea">
+          <input type="text" id="wordInput" placeholder="Введи слово">
+          <button class="btn" onclick="setWord()">Рисовать!</button>
         </div>
       </div>
 
+      <!-- Табло -->
+      <div class="scoreboard" id="scoreboard">
+        <h3>📊 Счёт</h3>
+        <div id="scoreRows"></div>
+      </div>
+
+      <!-- Чат -->
       <div id="chat">
         <div id="chat-messages"></div>
         <div id="guessArea">
@@ -61,6 +137,13 @@
         </div>
       </div>
     </div>
+
+    <!-- Оверлей угадано -->
+    <div id="overlay" class="word-overlay hidden">
+      <h2 id="overlayTitle">✅ Угадано!</h2>
+      <p id="overlayWord"></p>
+      <p id="overlayNext" style="margin-top:15px;color:#888"></p>
+    </div>
   </div>
 
 <script>
@@ -68,119 +151,18 @@ const socket = io();
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
 
-let isDrawer=false, drawing=false, color='#fff', lastPos=null, sz=3;
-let cW, cH, scaleX=1, scaleY=1;
+let isDrawer = false;
+let drawing = false;
+let color = '#fff';
+let lastPos = null;
+let sz = 3;
+let cW, cH, scaleX = 1, scaleY = 1;
+let myId = null;
+let players = [];
+let currentDrawerIndex = 0;
 
-function resize(){
-  cW=Math.min(window.innerWidth-30,600);
-  cH=Math.round(cW*0.67);
-  scaleX=cW/600; scaleY=cH/400;
-  canvas.width=cW; canvas.height=cH;
-  ctx.fillStyle='#111'; ctx.fillRect(0,0,cW,cH);
-}
-resize();
-window.addEventListener('resize',resize);
+// Получаем свой ID
+socket.on('connect', () => { myId = socket.id; });
 
-function createRoom(){
-  socket.emit('createRoom','draw',(code)=>{
-    isDrawer=true;
-    document.getElementById('roomCode').textContent=code;
-    document.getElementById('roomInfo').classList.remove('hidden');
-    document.getElementById('wordSetup').classList.remove('hidden');
-  });
-}
-
-function joinRoom(){
-  const code=document.getElementById('codeInput').value.toUpperCase();
-  socket.emit('joinRoom',code,(res)=>{
-    if(res.error) return alert(res.error);
-    isDrawer=false; showGame();
-  });
-}
-
-socket.on('playerJoined',(c)=>{document.getElementById('playerCount').textContent=c;});
-
-function setWord(){
-  const w=document.getElementById('wordInput').value.trim();
-  if(!w)return;
-  socket.emit('setWord',w); showGame();
-  document.getElementById('hintBar').textContent='Ты рисуешь: '+w;
-  document.getElementById('drawTools').classList.remove('hidden');
-  document.getElementById('guessArea').classList.add('hidden');
-}
-
-function showGame(){
-  document.getElementById('lobby').classList.add('hidden');
-  document.getElementById('gameScreen').classList.remove('hidden');
-  resize();
-}
-
-socket.on('wordHint',(h)=>{document.getElementById('hintBar').textContent='Подсказка: '+h;});
-
-function getPos(e){
-  const r=canvas.getBoundingClientRect();
-  return {x:(e.clientX-r.left)/scaleX, y:(e.clientY-r.top)/scaleY};
-}
-function getTPos(e){
-  const r=canvas.getBoundingClientRect();
-  const t=e.touches[0];
-  return {x:(t.clientX-r.left)/scaleX, y:(t.clientY-r.top)/scaleY};
-}
-
-canvas.addEventListener('mousedown',(e)=>{if(!isDrawer)return;drawing=true;lastPos=getPos(e);});
-canvas.addEventListener('mousemove',(e)=>{
-  if(!drawing||!isDrawer)return;
-  const p=getPos(e); drawLine(lastPos,p,color,sz);
-  socket.emit('drawLine',{from:lastPos,to:p,color,sz}); lastPos=p;
-});
-canvas.addEventListener('mouseup',()=>drawing=false);
-canvas.addEventListener('mouseleave',()=>drawing=false);
-
-canvas.addEventListener('touchstart',(e)=>{
-  if(!isDrawer)return; e.preventDefault(); drawing=true; lastPos=getTPos(e);
-});
-canvas.addEventListener('touchmove',(e)=>{
-  if(!drawing||!isDrawer)return; e.preventDefault();
-  const p=getTPos(e); drawLine(lastPos,p,color,sz);
-  socket.emit('drawLine',{from:lastPos,to:p,color,sz}); lastPos=p;
-});
-canvas.addEventListener('touchend',(e)=>{e.preventDefault();drawing=false;});
-
-function drawLine(a,b,c,s){
-  ctx.strokeStyle=c; ctx.lineWidth=s*scaleX; ctx.lineCap='round';
-  ctx.beginPath(); ctx.moveTo(a.x*scaleX,a.y*scaleY);
-  ctx.lineTo(b.x*scaleX,b.y*scaleY); ctx.stroke();
-}
-
-socket.on('drawLine',(d)=>{drawLine(d.from,d.to,d.color,d.sz||3);});
-
-function setClr(c,el){
-  color=c;
-  document.querySelectorAll('.color-btn').forEach(b=>b.classList.remove('active'));
-  el.classList.add('active');
-}
-
-function clearC(){
-  ctx.fillStyle='#111'; ctx.fillRect(0,0,canvas.width,canvas.height);
-  socket.emit('clearCanvas');
-}
-socket.on('clearCanvas',()=>{ctx.fillStyle='#111';ctx.fillRect(0,0,canvas.width,canvas.height);});
-
-function sendGuess(){
-  const inp=document.getElementById('guessInput');
-  const m=inp.value.trim(); if(!m)return;
-  socket.emit('chatMsg',m); addMsg('Ты: '+m); inp.value='';
-}
-socket.on('chatMsg',(d)=>{addMsg('Игрок: '+d.msg);});
-socket.on('correctGuess',(d)=>{
-  addMsg('✅ Угадано! Слово: '+d.word,true);
-  document.getElementById('hintBar').textContent='🎉 Угадано: '+d.word;
-});
-function addMsg(t,ok){
-  const div=document.getElementById('chat-messages');
-  const p=document.createElement('p'); p.textContent=t;
-  if(ok)p.className='correct'; div.appendChild(p); div.scrollTop=div.scrollHeight;
-}
-</script>
-</body>
-</html>
+function resize() {
+  cW 
