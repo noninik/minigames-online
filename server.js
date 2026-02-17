@@ -5,7 +5,7 @@ const { Server } = require('socket.io');
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: { origin: "*", methods: ["GET", "POST"] }
+  cors: { origin: '*', methods: ['GET', 'POST'] }
 });
 
 app.use(express.static('public'));
@@ -15,7 +15,7 @@ const rooms = {};
 
 // ===== УТИЛИТЫ =====
 
-// Генерация кода комнаты без похожих символов (O/0, I/1, l)
+// Генерация кода без похожих символов (0/O, 1/I/l)
 function genCode(length = 6) {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let code = '';
@@ -27,7 +27,7 @@ function genCode(length = 6) {
 
 // Валидация кода комнаты
 function isValidRoomCode(code) {
-  return /^[A-Z2-9]{6}$/.test(code);
+  return typeof code === 'string' && /^[A-Z2-9]{6}$/.test(code);
 }
 
 // Очистка имени от XSS и пробелов
@@ -84,7 +84,7 @@ io.on('connection', (socket) => {
       }
       
       const code = genCode();
-      const playerName = 'Игрок 1'; // можно расширить: принимать имя от клиента
+      const playerName = 'Игрок 1';
       
       rooms[code] = {
         game,
@@ -100,17 +100,16 @@ io.on('connection', (socket) => {
       socket.playerName = playerName;
       
       console.log(`🏠 Создана комната ${code} (${game})`);
-      cb && cb(code);
+      cb && cb({ code, name: playerName });
     } catch (err) {
       console.error('❌ Ошибка createRoom:', err);
       cb && cb({ error: 'Внутренняя ошибка сервера' });
     }
   });
 
-  // --- Вход в комнату ---
+  // --- Вход в комнату с именем ---
   socket.on('joinRoom', (code, playerName, cb) => {
     try {
-      // Валидация входных данных
       if (!isValidRoomCode(code)) {
         return cb && cb({ error: 'Неверный формат кода (6 букв/цифр)' });
       }
@@ -124,7 +123,6 @@ io.on('connection', (socket) => {
       if (!room) return cb && cb({ error: 'Комната не найдена' });
       if (room.players.length >= 4) return cb && cb({ error: 'Комната полная' });
       
-      // Проверка на дубликат имени
       if (room.players.some(p => p.name.toLowerCase() === safeName.toLowerCase())) {
         return cb && cb({ error: 'Такое имя уже занято' });
       }
@@ -137,14 +135,12 @@ io.on('connection', (socket) => {
       socket.roomCode = code;
       socket.playerName = safeName;
       
-      // Ответ подключившемуся
       cb && cb({
         game: room.game,
         playerIndex: idx,
         players: room.players.map(p => ({ name: p.name, score: p.score }))
       });
       
-      // Уведомление остальным
       io.to(code).emit('playerJoined', {
         name: safeName,
         count: room.players.length,
@@ -185,13 +181,12 @@ io.on('connection', (socket) => {
 
   // --- DRAW: Установка слова ---
   socket.on('setWord', (word) => {
-    if (!checkRateLimit(socket.id, 'setWord', 3, 5000)) return; // макс 3 раза за 5 сек
+    if (!checkRateLimit(socket.id, 'setWord', 3, 5000)) return;
     
     const code = socket.roomCode;
     if (!code || !rooms[code]) return;
     const room = rooms[code];
     
-    // Только рисующий может установить слово
     const playerIdx = room.players.findIndex(p => p.id === socket.id);
     if (playerIdx !== room.state.drawerIndex) return;
     
@@ -224,15 +219,11 @@ io.on('connection', (socket) => {
     const playerIdx = room.players.findIndex(p => p.id === socket.id);
     const playerName = playerIdx >= 0 ? room.players[playerIdx].name : 'Игрок';
     
-    // Проверка на правильный ответ
     if (room.state.word && 
         typeof msg === 'string' &&
         msg.toLowerCase().trim() === room.state.word.toLowerCase().trim()) {
       
-      // Награда угадавшему
       if (playerIdx >= 0) room.players[playerIdx].score += 10;
-      
-      // Награда рисующему
       const di = room.state.drawerIndex;
       if (di < room.players.length) room.players[di].score += 5;
       
@@ -244,20 +235,18 @@ io.on('connection', (socket) => {
       
       room.state.word = null;
       
-      // Следующий раунд с задержкой
       setTimeout(() => {
         if (rooms[code]) nextRound(code);
       }, 4000);
       
     } else {
-      // Обычное сообщение в чат
       io.to(code).emit('chatMsg', { name: playerName, msg: String(msg).slice(0, 200) });
     }
   });
 
-  // --- DRAW: Рисование (с rate limit) ---
+  // --- DRAW: Рисование ---
   socket.on('drawLine', (data) => {
-    if (!checkRateLimit(socket.id, 'drawLine', 50, 1000)) return; // макс 50 линий/сек
+    if (!checkRateLimit(socket.id, 'drawLine', 50, 1000)) return;
     if (socket.roomCode) {
       socket.to(socket.roomCode).emit('drawLine', {
         from: data?.from,
@@ -330,13 +319,11 @@ io.on('connection', (socket) => {
         players: room.players.map(p => ({ name: p.name, score: p.score }))
       });
       
-      // Если хост ушёл — передаём хост первому оставшемуся
       if (socket.id === room.host && room.players.length > 0) {
         room.host = room.players[0].id;
         io.to(code).emit('hostChanged', { newHost: room.players[0].name });
       }
       
-      // Удаляем пустую комнату
       if (room.players.length === 0) {
         delete rooms[code];
         console.log(`🗑️ Удалена комната: ${code}`);
@@ -352,7 +339,7 @@ io.on('connection', (socket) => {
   });
 });
 
-// ===== ЛОГИКА СЛЕДУЮЩЕГО РАУНДА (DRAW) =====
+// ===== ЛОГИКА СЛЕДУЮЩЕГО РАУНДА =====
 function nextRound(code) {
   const room = rooms[code];
   if (!room || room.players.length < 2) return;
