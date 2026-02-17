@@ -54,6 +54,64 @@
       cursor: pointer; font-size: 0.9em; margin-top: 8px;
     }
     .copy-btn:active { background: #667eea; color: #fff; }
+    .hidden { display: none !important; }
+    .btn {
+      background: #667eea; color: #fff; border: none;
+      padding: 10px 20px; border-radius: 8px; cursor: pointer;
+      font-size: 1em; margin: 5px;
+    }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .btn-secondary {
+      background: #333; border: 1px solid #555; color: #ccc;
+    }
+    input[type="text"] {
+      padding: 10px; border: 1px solid #444; border-radius: 6px;
+      background: #222; color: #fff; font-size: 1em; margin: 5px;
+    }
+    .container {
+      max-width: 700px; margin: 0 auto; padding: 15px;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+    .back-link {
+      display: inline-block; margin-bottom: 15px; color: #667eea;
+      text-decoration: none; font-weight: 500;
+    }
+    .lobby { text-align: center; padding: 20px; }
+    .game-area { padding: 10px; }
+    #c {
+      display: block; margin: 10px auto; background: #111;
+      border: 2px solid #333; border-radius: 8px;
+      touch-action: none; max-width: 100%;
+    }
+    .info-bar {
+      display: flex; align-items: center; justify-content: center;
+      gap: 10px; padding: 10px; background: #1a1a2e;
+      border-radius: 8px; margin: 10px 0; color: #ccc;
+    }
+    #drawTools {
+      display: flex; flex-wrap: wrap; gap: 8px;
+      justify-content: center; margin: 10px 0;
+    }
+    .color-picker { display: flex; gap: 4px; }
+    .color-btn {
+      width: 28px; height: 28px; border-radius: 50%;
+      border: 2px solid #444; cursor: pointer;
+    }
+    .color-btn.active { border-color: #fff; transform: scale(1.1); }
+    #chat {
+      background: #1a1a2e; border-radius: 8px; padding: 10px;
+      margin-top: 10px; max-height: 200px; display: flex; flex-direction: column;
+    }
+    #chat-messages {
+      flex: 1; overflow-y: auto; padding: 5px;
+      font-size: 0.9em; color: #ddd;
+    }
+    #chat-messages p { margin: 3px 0; }
+    #chat-messages .correct { color: #2ecc71; font-weight: bold; }
+    #guessArea {
+      display: flex; gap: 5px; margin-top: 8px;
+    }
+    #guessArea input { flex: 1; }
   </style>
 </head>
 <body>
@@ -67,16 +125,16 @@
         <button class="btn" onclick="createRoom()">Создать комнату</button>
       </div>
       <div style="margin-top:15px">
-        <input type="text" id="codeInput" placeholder="Код" maxlength="6">
+        <input type="text" id="codeInput" placeholder="Код" maxlength="6" style="text-transform:uppercase">
         <button class="btn btn-secondary" onclick="joinRoom()">Войти</button>
       </div>
       <div id="roomInfo" class="hidden">
-        <div class="room-code" id="roomCode"></div>
+        <div class="room-code" id="roomCode" style="font-size:1.5em;font-weight:bold;margin:10px 0"></div>
         <button class="copy-btn" onclick="copyCode()">📋 Скопировать код</button>
         <div class="info-bar" style="margin-top:10px">
           Игроков: <span id="playerCount">1</span>/4
         </div>
-        <button class="btn" style="margin-top:12px" onclick="startFirst()">🚀 Начать игру</button>
+        <button class="btn" id="startBtn" style="margin-top:12px" onclick="startFirst()">🚀 Начать игру</button>
         <p id="waitMsg" class="hidden" style="color:#f39c12;margin-top:10px">
           Ждём пока хост начнёт игру...
         </p>
@@ -110,7 +168,7 @@
           <button class="btn btn-secondary" onclick="sz=10" style="padding:8px 12px;font-size:0.85em">Толстая</button>
         </div>
         <div class="word-input-area" id="wordInputArea">
-          <input type="text" id="wordInput" placeholder="Введи слово для рисования">
+          <input type="text" id="wordInput" placeholder="Введи слово для рисования" maxlength="30">
           <button class="btn" onclick="setWord()">🎨 Рисовать!</button>
         </div>
       </div>
@@ -125,7 +183,7 @@
       <div id="chat">
         <div id="chat-messages"></div>
         <div id="guessArea">
-          <input type="text" id="guessInput" placeholder="Твой ответ..."
+          <input type="text" id="guessInput" placeholder="Твой ответ..." maxlength="50"
             onkeydown="if(event.key==='Enter')sendGuess()">
           <button class="btn" onclick="sendGuess()">→</button>
         </div>
@@ -153,6 +211,7 @@ let lastPos = null;
 let sz = 3;
 let cW, cH, scaleX = 1, scaleY = 1;
 let myId = null;
+let myName = 'Игрок';
 let myRoomCode = '';
 let players = [];
 let currentDrawerIndex = 0;
@@ -177,27 +236,43 @@ window.addEventListener('resize', resize);
 // ==================
 
 function createRoom() {
-  socket.emit('createRoom', 'draw', (code) => {
-    myRoomCode = code;
+  const name = prompt('Введи своё имя (2-15 символов):', 'Игрок');
+  if (!name || name.length < 2 || name.length > 15) {
+    alert('Имя должно быть от 2 до 15 символов');
+    return;
+  }
+  socket.emit('createRoom', 'draw', name, (res) => {
+    if (res?.error) return alert(res.error);
+    myRoomCode = res.code;
+    myName = res.name;
     isHost = true;
-    document.getElementById('roomCode').textContent = code;
+    document.getElementById('roomCode').textContent = myRoomCode;
     document.getElementById('roomInfo').classList.remove('hidden');
+    document.getElementById('startBtn').classList.remove('hidden');
+    document.getElementById('waitMsg').classList.add('hidden');
   });
 }
 
 function joinRoom() {
   const code = document.getElementById('codeInput').value.toUpperCase().trim();
   if (!code) return alert('Введи код комнаты');
-  socket.emit('joinRoom', code, (res) => {
-    if (res.error) return alert(res.error);
+  
+  const name = prompt('Введи своё имя (2-15 символов):', 'Игрок');
+  if (!name || name.length < 2 || name.length > 15) {
+    alert('Имя должно быть от 2 до 15 символов');
+    return;
+  }
+  
+  socket.emit('joinRoom', code, name, (res) => {
+    if (res?.error) return alert(res.error);
     myRoomCode = code;
+    myName = name;
     isHost = false;
     if (res.players) players = res.players;
     document.getElementById('roomCode').textContent = code;
     document.getElementById('roomInfo').classList.remove('hidden');
     document.getElementById('playerCount').textContent = players.length;
-    // Гость не видит кнопку Начать — ждёт
-    document.querySelector('#roomInfo .btn').classList.add('hidden');
+    document.getElementById('startBtn').classList.add('hidden');
     document.getElementById('waitMsg').classList.remove('hidden');
   });
 }
@@ -206,23 +281,23 @@ function copyCode() {
   const code = myRoomCode;
   if (navigator.clipboard) {
     navigator.clipboard.writeText(code).then(() => {
-      alert('Код скопирован: ' + code);
+      alert('✅ Код скопирован: ' + code);
     });
   } else {
-    // Фоллбек для старых браузеров
     const ta = document.createElement('textarea');
     ta.value = code;
     document.body.appendChild(ta);
     ta.select();
     document.execCommand('copy');
     document.body.removeChild(ta);
-    alert('Код скопирован: ' + code);
+    alert('✅ Код скопирован: ' + code);
   }
 }
 
 socket.on('playerJoined', (data) => {
   document.getElementById('playerCount').textContent = data.count;
   if (data.players) players = data.players;
+  updateScoreboard();
 });
 
 socket.on('playerLeft', (data) => {
@@ -231,19 +306,28 @@ socket.on('playerLeft', (data) => {
   updateScoreboard();
 });
 
+socket.on('hostChanged', (data) => {
+  if (data.newHost === myName) {
+    isHost = true;
+    document.getElementById('startBtn').classList.remove('hidden');
+    document.getElementById('waitMsg').classList.add('hidden');
+    addMsg('👑 Вы стали хостом!', false, true);
+  }
+});
+
+socket.on('serverShutdown', () => {
+  alert('⚠️ Сервер перезагружается. Подключитесь позже.');
+  location.reload();
+});
+
 // ==================
 // НАЧАЛО ИГРЫ
 // ==================
 
 function startFirst() {
-  if (players.length < 1) {
-    // Даже если один — пусть начнёт (для теста)
-  }
-  // Сообщаем серверу что игра началась
   socket.emit('drawGameStart');
 }
 
-// Хост нажал Начать — все получают сигнал
 socket.on('drawGameStarted', (data) => {
   if (data.players) players = data.players;
   currentDrawerIndex = data.drawerIndex;
@@ -467,6 +551,14 @@ function addMsg(text, correct, system) {
   div.appendChild(p);
   div.scrollTop = div.scrollHeight;
 }
+
+// ==================
+// ОШИБКИ
+// ==================
+
+socket.on('error', (data) => {
+  alert('❌ ' + (data?.msg || data?.error || 'Ошибка'));
+});
 </script>
 </body>
 </html>
